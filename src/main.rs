@@ -2,15 +2,18 @@
 compile_error!("rust-rapl only support linux");
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{os::unix::fs::PermissionsExt, path::PathBuf};
 
 #[macro_use]
 mod error;
 pub use error::*;
 
+#[macro_use]
 mod common;
 mod cpuid;
+mod logger;
 mod models;
+mod task;
 mod tool;
 
 #[derive(Debug, Parser)]
@@ -18,14 +21,14 @@ mod tool;
 #[command(name = "run_rapl")]
 #[command(about = "Power consumption measurement tool based on Intel RAPL")]
 struct Arg {
-    #[arg(
-        short = 'd',
-        long = "delay",
-        default_value_t = 1000,
-        value_name = "MICROSECOND",
-        help = "Delay between polls(us)"
-    )]
-    delay: u32,
+    // #[arg(
+    //     short = 'd',
+    //     long = "delay",
+    //     default_value_t = 1000,
+    //     value_name = "MICROSECOND",
+    //     help = "Delay between polls (ms)"
+    // )]
+    // delay: u32,
     #[arg(
         short = 't',
         long = "terminate-after",
@@ -49,6 +52,8 @@ pure software energy consumption by offsetting the measurements
 using previously measurement idle data of the system consumption."
     )]
     isolate_file: Option<PathBuf>,
+    #[arg(long = "dir", help = "Output directory")]
+    output_dir: Option<PathBuf>,
     #[command(subcommand)]
     tool: Tool,
 }
@@ -90,31 +95,8 @@ enum Tool {
         )]
         interval: u32,
     },
-
-    /// Measure power consumption of an interactive application.
-    ///
-    /// Benchmark an interactive program. By default, `benchmark-int` expects <program> to be executable -
-    /// alternatively you can specify a runner. To retain availability of the terminal and only log in the background, pass
-    /// `-b, --bg-log`.
-    BenchmarkInt {
-        #[arg(
-            short = 'r',
-            long = "runner",
-            help = "Benchmark requires <runner> to execute"
-        )]
-        runner: Option<PathBuf>,
-        /// Benchmark program
-        program: PathBuf,
-        /// Args for <program>
-        args: Vec<String>,
-        #[arg(short = 'b', long = "bg-log", default_value_t = false)]
-        background_log: bool,
-    },
-    /// List utility for various RAPL-related information.
-    List {
-        /// What to list
-        input: String,
-    },
+    /// List supported RAPL domain.
+    List,
     /// Pretty print last measurement of .csv file
     PrettyPrint {
         /// File to print from
@@ -136,21 +118,90 @@ enum Tool {
             help = "Generate isolation data from .csv file"
         )]
         file: Option<PathBuf>,
-        #[arg(short = 'd', long = "output-dir", help = "Output file directory")]
-        output_dir: Option<PathBuf>,
-        /// Output file name
-        output: String,
+    },
+    /// Tools for extract data from csv file.
+    Extract {
+        /// File to extract
+        file: PathBuf,
     },
 }
 
+// Disk Write: < 5 KB/s
+const POLL_DELAY: u32 = 20;
+
 fn main() {
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
-    }
-    env_logger::init();
     let arg = Arg::parse();
-    match arg.tool {
-        Tool::Live => {}
-        _ => {}
-    };
+
+    if arg.output_dir.is_some() {
+        let path = std::path::Path::new(arg.output_dir.as_ref().unwrap());
+        if !path.exists() {
+            std::fs::create_dir_all(path).unwrap();
+            let mut perm = std::fs::metadata(path).unwrap().permissions();
+            perm.set_mode(0o775);
+            std::fs::set_permissions(path, perm).unwrap();
+        }
+    }
+
+    if let Err(e) = match arg.tool {
+        Tool::Live => {
+            crate::common::setup_ncurses();
+            crate::tool::live_measurement(
+                POLL_DELAY,
+                arg.run_time_limit,
+                arg.name.as_ref(),
+                arg.output_dir.as_ref(),
+            )
+        }
+        Tool::Benchmark {
+            runner,
+            program,
+            args,
+            count,
+            interval,
+        } => tool::do_benchmarks(
+            POLL_DELAY,
+            arg.name.as_ref(),
+            arg.output_dir.as_ref(),
+            arg.isolate_file.as_ref(),
+            runner,
+            program,
+            args,
+            count,
+            interval,
+        ),
+        Tool::List => tool::list(),
+        Tool::PrettyPrint { file } => tool::pretty_print(file),
+        Tool::Isolate { measure, file } => {
+            match file {
+                Some(path) => {
+                    // generate data
+                    tool::generate_isolate_data(
+                        arg.output_dir.as_ref(),
+                        arg.name.as_ref().unwrap_or(&"default".to_string()),
+                        path,
+                    )
+                }
+                _ => {
+                    common::setup_ncurses();
+                    // measure data basis
+                    tool::measure_isolate_data(
+                        POLL_DELAY,
+                        arg.output_dir.as_ref(),
+                        arg.name.as_ref().unwrap_or(&"default".to_string()),
+                        measure,
+                    )
+                }
+            }
+        }
+        Tool::Extract { file } => tool::extract_data(
+            arg.output_dir.as_ref(),
+            arg.name.as_ref().unwrap_or(&"default".to_string()),
+            file,
+        ), // _ => unreachable!(),
+    } {
+        eprintln!("ERROR:{}", e);
+        std::process::exit(1);
+    }
+
+    std::process::exit(0);
 }

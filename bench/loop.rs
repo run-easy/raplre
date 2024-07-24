@@ -65,6 +65,16 @@ fn main() {
                 loop {
                     unsafe {
                         core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
+                        core::arch::x86_64::_mm_pause();
                     }
                 }
             });
