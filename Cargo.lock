@@ -170,9 +170,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.9"
+version = "4.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64acc1846d54c1fe936a78dc189c34e28d3f5afc348403f28ecf53660b9b8462"
+checksum = "8f6b81fb3c84f5563d509c59b5a48d935f689e993afa90fe39047f05adef9142"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -180,9 +180,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.9"
+version = "4.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fb8393d67ba2e7bfaf28a23458e4e2b543cc73a99595511eb207fdb8aede942"
+checksum = "5ca6706fd5224857d9ac5eb9355f6683563cc0541c7cd9d014043b57cbec78ac"
 dependencies = [
  "anstream",
  "anstyle",
@@ -296,9 +296,9 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "env_filter"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a009aa4810eb158359dda09d0c87378e4bbb89b5a801f016885a4707ba24f7ea"
+checksum = "c6dc8c8ff84895b051f07a0e65f975cf225131742531338752abfb324e4449ff"
 dependencies = [
  "log",
  "regex",
@@ -332,9 +332,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38b35839ba51819680ba087cd351788c9a3c476841207e0b8cee0b04722343b9"
+checksum = "06676b12debf7bba6903559720abca942d3a66b8acb88815fd2c7c6537e9ade1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -351,6 +351,19 @@ checksum = "534c5cf6194dfab3db3242765c03bbe257cf92f22b38f6bc0c58d59108a820ba"
 dependencies = [
  "libc",
  "windows-sys",
+]
+
+[[package]]
+name = "errore"
+version = "1.0.0"
+source = "git+https://e.coding.net/g-pxye7583/runeasy/errore.git#fb69bbf8bba1d2e4cb48bdcd279679ff75fbaac4"
+dependencies = [
+ "clap 4.5.10",
+ "const-fnv1a-hash",
+ "ctor",
+ "log",
+ "once_cell",
+ "pretty_env_logger",
 ]
 
 [[package]]
@@ -585,6 +598,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "raplre"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+ "clap 4.5.10",
+ "csv",
+ "ctor",
+ "ctrlc",
+ "env_logger 0.11.4",
+ "errore",
+ "libc",
+ "log",
+ "ncurses",
+ "once_cell",
+ "prettytable-rs",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "redox_users"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -623,40 +657,6 @@ name = "regex-syntax"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
-
-[[package]]
-name = "run-error"
-version = "1.0.0"
-source = "git+https://e.coding.net/g-pxye7583/run/run-error.git#6f31ee22a26d6f15522f0cfaaf18ceece90c0629"
-dependencies = [
- "clap 4.5.9",
- "const-fnv1a-hash",
- "ctor",
- "log",
- "once_cell",
- "pretty_env_logger",
-]
-
-[[package]]
-name = "run-rapl"
-version = "0.1.0"
-dependencies = [
- "bindgen",
- "cc",
- "clap 4.5.9",
- "csv",
- "ctor",
- "ctrlc",
- "env_logger 0.11.3",
- "libc",
- "log",
- "ncurses",
- "once_cell",
- "prettytable-rs",
- "run-error",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "rustc-hash"
@@ -740,9 +740,9 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "syn"
-version = "2.0.71"
+version = "2.0.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b146dcf730474b4bcd16c311627b31ede9ab149045db4d6088b3becaea046462"
+checksum = "dc4b9b9bf2add8093d3f2c0204471e951b2285580335de42f9d2534f3ae7a8af"
 dependencies = [
  "proc-macro2",
  "quote",

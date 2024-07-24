@@ -1,10 +1,11 @@
+
 mod internel {
     #![allow(dead_code)]
-    use run_error::error::*;
-    use run_error::kind::*;
+    use errore::error::*;
+    use errore::kind::*;
 
     #[ctor::ctor]
-    static _RMODULE: RModule = RModule::new("run-rapl");
+    static _RMODULE: RModule = RModule::new("raplre");
 
     #[inline]
     pub(crate) fn new_simple(kind: RErrorKind) -> RError {
@@ -22,9 +23,10 @@ mod internel {
 
 #[allow(unused_imports)]
 pub use internel::*;
-pub use run_error::error::RError;
 #[allow(unused_imports)]
-pub use run_error::kind::*;
+pub use errore::kind::*;
+#[allow(unused_imports)]
+pub use errore::error::RError;
 
 #[macro_export]
 macro_rules! throw_rerr {
@@ -42,8 +44,8 @@ macro_rules! throw_rerr {
 #[macro_export]
 macro_rules! ignore_rerr {
     ($err:expr) => {
-        let _: usize = { &$err as *const run_error::error::RError as usize };
-        log::warn!("{}. Ignore it.", $err);
+        let _: usize = { &$err as *const errore::error::RError as usize };
+        // log::warn!("{}. Ignore it.", $err);
         $err.ignore();
     };
 }
@@ -51,8 +53,22 @@ macro_rules! ignore_rerr {
 #[macro_export]
 macro_rules! block_rerr {
     ($err:expr) => {
-        let _: usize = { &$err as *const run_error::error::RError as usize };
-        log::warn!("{}. Block it.", $err);
+        let _: usize = { &$err as *const errore::error::RError as usize };
+        // log::warn!("{}. Block it.", $err);
         $err.ignore();
     };
 }
+
+#[macro_export]
+macro_rules! new_rerr {
+    ($kind:expr) => {
+            crate::new_simple($kind)
+        };
+        ($kind:expr,$msg:expr) => {
+            crate::new_simple_msg($kind, $msg)
+        };
+        ($kind:expr,$($args:tt)*) => {
+            crate::new_custom_msg($kind,format!($($args)*))
+        };
+}
+    

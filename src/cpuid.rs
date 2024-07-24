@@ -9,11 +9,11 @@
 
 use std::{collections::HashMap, io::Read, ptr::NonNull, sync::Mutex};
 
-use once_cell::sync::Lazy;
-use run_error::{
+use errore::{
     error::RError,
     kind::{FFIERR, IOERR, OSERR},
 };
+use once_cell::sync::Lazy;
 
 pub type __uint8_t = ::std::os::raw::c_uchar;
 pub type __int32_t = ::std::os::raw::c_int;

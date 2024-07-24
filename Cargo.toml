@@ -1,5 +1,5 @@
 [package]
-name = "run-rapl"
+name = "raplre"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 libc = "0.2.155"
 once_cell = "1.19.0"
-run-error = {git = "https://e.coding.net/g-pxye7583/run/run-error.git"}
+errore = {git = "https://e.coding.net/g-pxye7583/runeasy/errore.git"}
 ctor = "0.2.8"
 log = "0.4.22"
 clap = { version = "4.5.9", features = ["derive"] }
@@ -26,5 +26,5 @@ cc = "1"
 
 
 [[bin]]
-name = "run-rapl-loopbh"
+name = "raplre-bm-loop"
 path = "bench/loop.rs"
