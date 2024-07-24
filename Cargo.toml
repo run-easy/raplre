@@ -26,5 +26,5 @@ cc = "1"
 
 
 [[bin]]
-name = "loop"
+name = "run-rapl-loopbh"
 path = "bench/loop.rs"
