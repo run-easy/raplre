@@ -88,6 +88,12 @@ enum Tool {
         )]
         count: u32,
         #[arg(
+            long = "smooth",
+            help = "Smoothing data based on EWMA",
+            default_value_t = false
+        )]
+        smooth: bool,
+        #[arg(
             short = 'i',
             long = "interval",
             help = "Interval between benchmark runs in seconds",
@@ -121,6 +127,18 @@ enum Tool {
     },
     /// Tools for extract data from csv file.
     Extract {
+        #[arg(
+            long = "smooth",
+            default_value_t = false,
+            help = "Smoothing data based on EWMA"
+        )]
+        smooth: bool,
+        #[arg(
+            long = "alpha",
+            default_value_t = 0.02,
+            help = "A constant double float value between 0 and 1, used for smoothing data based on EWMA"
+        )]
+        alpha: f64,
         /// File to extract
         file: PathBuf,
     },
@@ -157,6 +175,7 @@ fn main() {
             program,
             args,
             count,
+            smooth,
             interval,
         } => tool::do_benchmarks(
             POLL_DELAY,
@@ -167,6 +186,7 @@ fn main() {
             program,
             args,
             count,
+            smooth,
             interval,
         ),
         Tool::List => tool::list(),
@@ -193,9 +213,15 @@ fn main() {
                 }
             }
         }
-        Tool::Extract { file } => tool::extract_data(
+        Tool::Extract {
+            smooth,
+            alpha,
+            file,
+        } => tool::extract_data(
             arg.output_dir.as_ref(),
             arg.name.as_ref().unwrap_or(&"default".to_string()),
+            smooth,
+            alpha,
             file,
         ), // _ => unreachable!(),
     } {

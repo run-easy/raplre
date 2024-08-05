@@ -4,10 +4,7 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use crate::{
-    cpuid::get_core_of_package,
-    models::{self, IsolateData, RAPLZone},
-};
+use crate::models::{self, IsolateData, RAPLZone};
 
 // measurement thread
 pub(crate) const THREAD_KILL: i8 = 1;
@@ -60,12 +57,12 @@ pub(crate) fn setup_rapl_data() -> Vec<models::RAPLData> {
 
 pub(crate) fn detect_cpu() -> Vec<RAPLZone> {
     let mut zones = vec![];
-    for pkg in 0..crate::cpuid::num_package() {
-        let cpu_info = crate::cpuid::get_cpu_info(pkg).unwrap();
-        if cpu_info.vendor_name != "GenuineIntel" {
+    for pkg in 0..cpu::topology().max_num_packages() {
+        let cpu_info = &cpu::topology().package(pkg).unwrap().cpu_info;
+        if !cpu_info.vendor.contains("GenuineIntel") {
             eprintln!(
-                "Detected `{}`({}) cpu, run-rapl only support Intel CPU.",
-                cpu_info.vendor_name, cpu_info.vendor,
+                "Detected `{}` cpu, run-rapl only support Intel CPU.",
+                cpu_info.vendor,
             );
             std::process::exit(1);
         }
@@ -73,7 +70,7 @@ pub(crate) fn detect_cpu() -> Vec<RAPLZone> {
         let core = get_core_of_package(pkg).unwrap();
 
         // Sapphire Rapids microarchitecture. It supports the follows MSRs:
-        if cpu_info.display_family == 0x06 && cpu_info.display_model == 0x8f {
+        if cpu_info.ext_family == 0x06 && cpu_info.ext_model == 0x8f {
             // MSR_PP0_ENERGY_STATUS
             // MSR_PP0_ENERGY_STATUS/MSR_PP1_ENERGY_STATUS are read-only MSRs. They report the actual energy use
             // for the respective power plane domains. These MSRs are updated every ~1msec.
@@ -120,21 +117,22 @@ pub(crate) fn update_measurements(
     prev_time: Instant,
     output_file: &PathBuf,
     isolate_map: Option<&HashMap<String, models::IsolateData>>,
+    smooth: bool,
 ) {
     for zone in zones.iter_mut() {
         match isolate_map {
             Some(map) => {
                 let iz = map.get(&zone.zone.name).unwrap();
-                calculate_isolated_power_metrics(zone, now, start_time, prev_time, iz)
+                calculate_isolated_power_metrics(zone, now, start_time, prev_time, iz, smooth)
             }
-            _ => calculate_power_metrics(zone, now, start_time, prev_time),
+            _ => calculate_power_metrics(zone, now, start_time, prev_time, smooth),
         }
 
         crate::logger::log_poll_result(zone, output_file);
     }
 }
 
-fn read_rapl_energy_unit(pkg: u32) -> f64 {
+fn read_rapl_energy_unit(pkg: u16) -> f64 {
     const MSR_RAPL_POWER_UNIT: u32 = 1542;
     const ENERGY_STATUS_UNIT_MASK: u64 = 0xF00;
     const ENERGY_STATUS_UNIT_SHIFT: usize = 8;
@@ -145,14 +143,31 @@ fn read_rapl_energy_unit(pkg: u32) -> f64 {
     1.0 / (1 << raw_energy_status_units as usize) as f64
 }
 
+fn get_core_of_package(pkg: u16) -> Option<u32> {
+    for (core, enable) in cpu::topology()
+        .package(pkg)
+        .unwrap()
+        .lcores
+        .into_iter()
+        .enumerate()
+    {
+        if enable {
+            return Some(core as u32);
+        }
+    }
+
+    None
+}
+
 pub(crate) fn calculate_isolated_power_metrics(
     zone: &mut models::RAPLData,
     now: Instant,
     start_time: Instant,
     prev_time: Instant,
     isolated_zone: &models::IsolateData,
+    smooth: bool,
 ) {
-    calculate_power_metrics(zone, now, start_time, prev_time);
+    calculate_power_metrics(zone, now, start_time, prev_time, smooth);
     zone.total_power_j -= zone.delta_power_j;
     zone.delta_power_j -= isolated_zone.delta_power_j.avg;
     zone.total_power_j += zone.delta_power_j;
@@ -165,6 +180,7 @@ fn calculate_power_metrics(
     now: Instant,
     start_time: Instant,
     prev_time: Instant,
+    smooth: bool,
 ) {
     let cur_power = crate::cpuid::read_msr(zone.zone.core, zone.zone.which).unwrap();
 
@@ -198,7 +214,15 @@ fn calculate_power_metrics(
     zone.prev_power_read = cur_power;
 
     // Calculate the instantaneous power in Watt(J/s)
+    let last_watt = zone.watt;
     zone.watt = delta_power_j * 1000.0 / (now.duration_since(prev_time).as_millis() as f64);
+    if smooth {
+        if zone.watt > last_watt {
+            zone.watt = last_watt + (zone.watt - last_watt) * 0.2;
+        } else {
+            zone.watt = last_watt - (last_watt - zone.watt) * 0.2;
+        }
+    }
     // Calculate the average power in Watt(J/s) over the time from the beginning of the measurement to the present.
     zone.avg_watt =
         zone.total_power_j * 1000.0 / (now.duration_since(start_time).as_millis() as f64);
@@ -235,13 +259,18 @@ pub(crate) fn create_log_file_name<S: AsRef<str>, T: AsRef<str>>(
     // dir: Option<&PathBuf>,
     benchmark_name: S,
     tool: T,
-    system_start_time: SystemTime,
+    system_start_time: Option<SystemTime>,
 ) -> String {
-    let time = system_start_time
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("Failed to check duration")
-        .as_secs();
-    return format!("{}-{}-{}.csv", benchmark_name.as_ref(), tool.as_ref(), time);
+    if let Some(system_start_time) = system_start_time {
+        let time = system_start_time
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Failed to check duration")
+            .as_secs();
+
+        return format!("{}-{}-{}.csv", benchmark_name.as_ref(), tool.as_ref(), time);
+    } else {
+        return format!("{}-{}.csv", benchmark_name.as_ref(), tool.as_ref());
+    }
 }
 
 pub(crate) fn spacing<S: AsRef<str>>(line: S) -> String {

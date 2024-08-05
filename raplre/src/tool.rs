@@ -38,18 +38,26 @@ pub(crate) fn live_measurement(
         Some(dir) => dir.join(common::create_log_file_name(
             name.unwrap_or(&"default".to_string()),
             TOOL_NAME,
-            system_start_time,
+            Some(system_start_time),
         )),
         None => PathBuf::from(common::create_log_file_name(
             name.unwrap_or(&"default".to_string()),
             TOOL_NAME,
-            system_start_time,
+            None,
         )),
     };
 
     loop {
         now = Instant::now();
-        common::update_measurements(&mut zones, now, start_time, prev_time, &output_file, None);
+        common::update_measurements(
+            &mut zones,
+            now,
+            start_time,
+            prev_time,
+            &output_file,
+            None,
+            false,
+        );
         prev_time = now;
 
         ncurses::clear();
@@ -87,17 +95,26 @@ pub(crate) fn do_benchmarks(
     program: PathBuf,
     args: Vec<String>,
     count: u32,
+    smooth: bool,
     interval: u32,
 ) -> Result<(), RError> {
     let sleep = Duration::from_secs(interval as u64);
+    let raw_name = name.map(|v| v.clone()).unwrap_or(format!("default"));
+    let mut name = raw_name.clone();
+    if count > 1 {
+        name = format!("{}_iter1", raw_name);
+    }
+
     for i in 0..count {
         if count > 1 {
             println!("Running benchmark iteration {}", i + 1);
+            name = format!("{}_iter{}", raw_name, i);
         }
 
         benchmark(
             poll_delay,
-            name.clone(),
+            smooth,
+            &name,
             dir.clone(),
             isolate.clone(),
             runner.as_ref(),
@@ -116,7 +133,8 @@ pub(crate) fn do_benchmarks(
 
 fn benchmark(
     poll_delay: u32,
-    name: Option<&String>,
+    smooth: bool,
+    name: &String,
     dir: Option<&PathBuf>,
     isolate_file: Option<&PathBuf>,
     runner: Option<&PathBuf>,
@@ -125,20 +143,12 @@ fn benchmark(
 ) -> Result<(), RError> {
     let isolate_map = common::read_isolated_data(isolate_file);
     let start_time = Instant::now();
-    let iteration_start_time = SystemTime::now();
+    // let iteration_start_time = SystemTime::now();
     const TOOL_NAME: &'static str = "benchmark";
 
     let output_file = match dir {
-        Some(dir) => dir.join(common::create_log_file_name(
-            name.unwrap_or(&"default".to_string()),
-            TOOL_NAME,
-            iteration_start_time,
-        )),
-        None => PathBuf::from(common::create_log_file_name(
-            name.unwrap_or(&"default".to_string()),
-            TOOL_NAME,
-            iteration_start_time,
-        )),
+        Some(dir) => dir.join(common::create_log_file_name(name, TOOL_NAME, None)),
+        None => PathBuf::from(common::create_log_file_name(name, TOOL_NAME, None)),
     };
 
     let (send, recv) = mpsc::channel();
@@ -148,6 +158,7 @@ fn benchmark(
         recv,
         poll_delay,
         output_file.clone(),
+        smooth,
         isolate_map,
     );
 
@@ -346,7 +357,9 @@ pub(crate) fn measure_isolate_data(
 
     loop {
         now = Instant::now();
-        common::update_measurements(&mut zones, now, start_time, prev_time, &csv_file, None);
+        common::update_measurements(
+            &mut zones, now, start_time, prev_time, &csv_file, None, false,
+        );
         prev_time = now;
 
         ncurses::clear();
@@ -373,6 +386,8 @@ pub(crate) fn measure_isolate_data(
 pub(crate) fn extract_data(
     dir: Option<&PathBuf>,
     name: &String,
+    smooth: bool,
+    alpha: f64,
     csv_file: PathBuf,
 ) -> Result<(), RError> {
     if !csv_file.exists() {
@@ -388,6 +403,14 @@ pub(crate) fn extract_data(
             NOT_ALLOWED,
             "Failed to open {} (error: not a file)",
             csv_file.to_str().unwrap()
+        );
+    }
+
+    if smooth && (alpha <= 0.0 || alpha >= 1.0) {
+        crate::throw_rerr!(
+            INVALID_VALUE,
+            "The value of alpha must between 0.0 and 1.0, received {}",
+            alpha
         );
     }
 
@@ -443,7 +466,20 @@ pub(crate) fn extract_data(
                 ),
             )
         })?;
-        for data in datas {
+
+        let mut ewma_watt = 0.0;
+
+        for mut data in datas {
+            if ewma_watt == 0.0 {
+                ewma_watt = data.watt;
+            } else if data.watt >= ewma_watt {
+                ewma_watt += (data.watt - ewma_watt) * alpha;
+            } else {
+                ewma_watt -= (ewma_watt - data.watt) * alpha;
+            }
+
+            data.watt = ewma_watt;
+
             wdr.serialize(data).map_err(|e| {
                 new_custom_msg(
                     NOT_ALLOWED,

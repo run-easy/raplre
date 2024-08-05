@@ -13,6 +13,7 @@ pub(crate) fn spawn_measurement_thread(
     recv: Receiver<i8>,
     poll_delay: u32,
     file_name: PathBuf,
+    smooth: bool,
     isolate_map: Option<HashMap<String, IsolateData>>,
 ) -> JoinHandle<()> {
     let thr = thread::spawn(move || {
@@ -34,6 +35,7 @@ pub(crate) fn spawn_measurement_thread(
                 prev_time,
                 &file_name,
                 isolate_map.as_ref(),
+                smooth,
             );
             prev_time = now;
 
@@ -48,6 +50,7 @@ pub(crate) fn spawn_measurement_thread(
                             prev_time,
                             &file_name,
                             isolate_map.as_ref(),
+                            false,
                         );
                         run = false;
                     }

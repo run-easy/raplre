@@ -1,0 +1,14 @@
+[package]
+name = "microbench"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "datacopy"
+harness = false
+path = "bench/datacopy.rs"
